@@ -31,7 +31,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
+# Configure CORS for Netlify frontend
+CORS(app, origins=["https://smarthire-frontend.netlify.app"], methods=["GET", "POST", "PUT", "DELETE"], supports_credentials=True)  # Updated CORS config
 
 # Configuration
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
