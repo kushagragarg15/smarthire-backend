@@ -10370,3 +10370,6 @@ pymongo.errors.InvalidOperation: Cannot use MongoClient after close
 2025-07-18 21:46:22,993 - __main__ - INFO - Returning 4 results
 2025-07-18 21:46:22,994 - __main__ - INFO - === RESUME MATCHES FETCHED ===
 2025-07-18 21:46:22,997 - werkzeug - INFO - 127.0.0.1 - - [18/Jul/2025 21:46:22] "GET /resume_matches HTTP/1.1" 200 -
+2025-07-19 00:33:36,591 - werkzeug - INFO -  * Detected change in 'C:\\Users\\namas\\OneDrive\\Desktop\\smarthire\\app.py', reloading
+2025-07-19 00:33:38,873 - werkzeug - INFO -  * Restarting with stat
+2025-07-19 00:33:55,392 - __main__ - INFO - SpaCy model loaded successfully
