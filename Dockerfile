@@ -22,7 +22,7 @@ RUN python -m spacy download en_core_web_sm
 COPY app.py .
 COPY resume_parser/ ./resume_parser/
 COPY jobs.json .
-COPY .env .
+#COPY .env .
 
 # Create directory for resumes
 RUN mkdir -p resumes
