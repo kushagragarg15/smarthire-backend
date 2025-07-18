@@ -55,7 +55,7 @@ def connect_to_mongodb(max_retries: int = 3) -> Optional[MongoClient]:
     for attempt in range(max_retries):
         try:
             client = MongoClient(
-                "mongodb+srv://23ucc564:2zc3Oys67uarz4W7@smarthire.ud6wo4p.mongodb.net/",
+                "mongodb+srv://23ucc564:2zc3Oys67uarz4W7@smarthire.ud6wo4p.mongodb.net/?retryWrites=true&w=majority&tls=true",
                 serverSelectionTimeoutMS=5000,
                 maxPoolSize=10,
                 minPoolSize=1
