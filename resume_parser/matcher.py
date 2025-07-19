@@ -229,22 +229,38 @@ def load_jobs_data() -> List[Dict[str, Any]]:
     try:
         # Try to import and use MongoDB first
         from pymongo import MongoClient
-        client = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=3000)
+        from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+        
+        # Use the same MongoDB connection as the backend
+        client = MongoClient(
+            "mongodb+srv://23ucc564:2zc3Oys67uarz4W7@smarthire.ud6wo4p.mongodb.net/?retryWrites=true&w=majority&tls=true",
+            serverSelectionTimeoutMS=5000,
+            maxPoolSize=10,
+            minPoolSize=1
+        )
+        
+        # Test connection
+        client.admin.command('ping')
         db = client["smarthire"]
         jobs_collection = db["jobs"]
         
         jobs = list(jobs_collection.find({"status": "active"}, {"_id": 0}))
         if jobs:
+            print(f"Loaded {len(jobs)} jobs from MongoDB")
             return jobs
-    except:
+    except Exception as e:
+        print(f"MongoDB connection failed: {e}")
         pass  # Fall back to JSON
     
     # Fallback to JSON file
     try:
         with open('jobs.json', 'r') as f:
             jobs = json.load(f)
-            return [job for job in jobs if job.get('status', 'active') == 'active']
+            active_jobs = [job for job in jobs if job.get('status', 'active') == 'active']
+            print(f"Loaded {len(active_jobs)} jobs from JSON fallback")
+            return active_jobs
     except FileNotFoundError:
+        print("No jobs.json file found")
         return []
 
 def match_jobs(candidate_profile: Dict[str, Any]) -> List[Dict[str, Any]]:

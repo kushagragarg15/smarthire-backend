@@ -31,8 +31,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-# Configure CORS for Netlify frontend
-CORS(app, origins=["https://smarthire-frontend.netlify.app"], methods=["GET", "POST", "PUT", "DELETE"], supports_credentials=True)  # Updated CORS config
+# Configure CORS for both local development and production
+allowed_origins = [
+    "http://localhost:3000",  # Local development
+    "https://smarthire-frontend.netlify.app",  # Netlify production
+    "https://smarthire.vercel.app",  # Vercel production (if you switch)
+]
+CORS(app, origins=allowed_origins, methods=["GET", "POST", "PUT", "DELETE"], supports_credentials=True)
 
 # Configuration
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -391,6 +396,8 @@ def add_job():
                 result = jobs_collection.insert_one(job)
                 if result.inserted_id:
                     logger.info(f"Job added to MongoDB: {job['title']}")
+                    # Sync JSON file with MongoDB
+                    sync_json_with_mongodb()
                 else:
                     logger.error("Failed to insert job into MongoDB")
                     return jsonify({"error": "Failed to save job to database"}), 500
@@ -450,6 +457,36 @@ def save_job_to_json(job: Dict[str, Any]) -> None:
     except Exception as e:
         logger.error(f"Failed to save job to JSON: {e}")
         raise
+
+def sync_json_with_mongodb() -> None:
+    """Sync jobs.json file with MongoDB database"""
+    try:
+        if jobs_collection is None:
+            logger.warning("MongoDB not available, skipping JSON sync")
+            return
+            
+        # Get all active jobs from MongoDB
+        mongo_jobs = list(jobs_collection.find({"status": "active"}, {"_id": 0}))
+        
+        # Save to JSON file
+        with open("jobs.json", "w") as f:
+            json.dump(mongo_jobs, f, indent=2, default=str)
+            
+        logger.info(f"Synced {len(mongo_jobs)} jobs from MongoDB to JSON")
+    except Exception as e:
+        logger.error(f"Failed to sync JSON with MongoDB: {e}")
+
+# -------------------------------
+# Endpoint: Sync JSON with MongoDB
+# -------------------------------
+@app.route('/sync_jobs', methods=['POST'])
+def sync_jobs_endpoint():
+    try:
+        sync_json_with_mongodb()
+        return jsonify({"message": "Jobs synced successfully"})
+    except Exception as e:
+        logger.error(f"Error syncing jobs: {e}")
+        return jsonify({"error": "Failed to sync jobs", "details": str(e)}), 500
 
 # -------------------------------
 # Endpoint: Get all jobs
@@ -529,6 +566,8 @@ def update_job(job_id: str):
                 )
                 if result.modified_count > 0:
                     logger.info(f"Job updated in MongoDB: {job_id}")
+                    # Sync JSON file with MongoDB
+                    sync_json_with_mongodb()
                     return jsonify({"message": "Job updated successfully"})
                 else:
                     return jsonify({"error": "Job not found"}), 404
@@ -556,6 +595,8 @@ def delete_job(job_id: str):
                 result = jobs_collection.delete_one({"id": job_id})
                 if result.deleted_count > 0:
                     logger.info(f"Job deleted from MongoDB: {job_id}")
+                    # Sync JSON file with MongoDB
+                    sync_json_with_mongodb()
                     return jsonify({"message": "Job deleted successfully"})
                 else:
                     return jsonify({"error": "Job not found"}), 404
@@ -581,6 +622,11 @@ def update_job_in_json(job_id: str, updated_job: Dict[str, Any]):
                 with open("jobs.json", "w") as f:
                     json.dump(jobs, f, indent=2, default=str)
                 logger.info(f"Job updated in JSON: {job_id}")
+                # Try to sync with MongoDB if available
+                try:
+                    sync_json_with_mongodb()
+                except:
+                    pass  # Ignore sync errors in fallback mode
                 return jsonify({"message": "Job updated successfully"})
         
         return jsonify({"error": "Job not found"}), 404
@@ -601,6 +647,11 @@ def delete_job_from_json(job_id: str):
             with open("jobs.json", "w") as f:
                 json.dump(jobs, f, indent=2, default=str)
             logger.info(f"Job deleted from JSON: {job_id}")
+            # Try to sync with MongoDB if available
+            try:
+                sync_json_with_mongodb()
+            except:
+                pass  # Ignore sync errors in fallback mode
             return jsonify({"message": "Job deleted successfully"})
         else:
             return jsonify({"error": "Job not found"}), 404
@@ -1273,8 +1324,30 @@ def get_all_applications():
         return jsonify({'error': str(e)}), 500
 
 # -------------------------------
+# Initialize application
+# -------------------------------
+def initialize_app():
+    """Initialize the application and sync jobs if needed"""
+    try:
+        logger.info("Initializing SmartHire application...")
+        
+        # Sync JSON file with MongoDB on startup
+        if jobs_collection is not None:
+            try:
+                sync_json_with_mongodb()
+                logger.info("Jobs synced successfully on startup")
+            except Exception as e:
+                logger.warning(f"Failed to sync jobs on startup: {e}")
+        else:
+            logger.warning("MongoDB not available, skipping startup sync")
+            
+    except Exception as e:
+        logger.error(f"Error during app initialization: {e}")
+
+# -------------------------------
 # Run the Flask App
 # -------------------------------
 if __name__ == '__main__':
+    initialize_app()
     logger.info("Starting SmartHire backend server...")
     app.run(debug=True, host='0.0.0.0', port=5000)
