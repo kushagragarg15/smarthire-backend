@@ -34,8 +34,7 @@ app = Flask(__name__)
 # Configure CORS for both local development and production
 allowed_origins = [
     "http://localhost:3000",  # Local development
-    "https://smarthire-frontend.netlify.app",  # Netlify production
-    "https://smarthire.vercel.app",  # Vercel production (if you switch)
+    "https://ipca.netlify.app",  # Netlify production  # Vercel production (if you switch)
 ]
 CORS(app, origins=allowed_origins, methods=["GET", "POST", "PUT", "DELETE"], supports_credentials=True)
 
