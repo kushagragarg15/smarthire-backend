@@ -1,54 +1,178 @@
 [
   {
-    "id": "280e0887-d084-4167-8b91-0d0b54ccb122",
-    "title": "Software Engineer",
-    "company": "lalu",
-    "location": "india",
-    "description": "ijdsoklospn",
-    "requirements": "sjnnssjin xk jm",
-    "salary": "10,000",
+    "id": "backend-001",
+    "title": "Senior Backend Engineer",
+    "company": "TechCorp",
+    "location": "San Francisco, CA",
+    "salary": "$130,000 - $160,000",
+    "description": "Build scalable web services using modern Python frameworks. Experience with microservices architecture and cloud platforms required.",
     "skills": [
-      "java python mongodb express"
+      "Python Web Framework",
+      "Microservices",
+      "Cloud Computing",
+      "Database Design",
+      "API Development"
     ],
-    "experience": "1 year",
-    "min_experience": 1,
+    "min_experience": 3,
     "education_keywords": [
-      "btech",
-      "b.e",
-      "bachelor",
-      "master",
-      "mca",
-      "msc"
+      "Bachelor",
+      "Computer Science"
     ],
     "status": "active",
-    "created_at": "2025-07-18T22:30:17.005173",
-    "updated_at": "2025-07-18T22:30:17.005180"
+    "created_at": "2025-07-18T04:02:07.934477",
+    "updated_at": "2025-07-18T04:02:07.934736"
   },
   {
-    "id": "9194f02e-ba59-40d3-8295-863e9ac2fdc4",
-    "title": "Software Developer",
-    "company": "Kushagra Softtech Pvt. Ltd.",
-    "location": "Location",
-    "description": "A candidate should have  depth knowledge of Python, react with backend MongoDB.",
-    "requirements": "he should be capable for doing  job 7 days with day and night shifts.",
-    "salary": "$2000",
+    "id": "fullstack-002",
+    "title": "Full Stack Developer",
+    "company": "StartupXYZ",
+    "location": "San Francisco, CA",
+    "salary": "$110,000 - $140,000",
+    "description": "Join our team building modern web applications. Need expertise in backend frameworks and frontend technologies.",
     "skills": [
-      "javascript",
-      "python",
-      "css"
+      "Web Development",
+      "Frontend Framework",
+      "Backend Development",
+      "Database"
     ],
-    "experience": "2 years",
     "min_experience": 2,
     "education_keywords": [
-      "btech",
-      "b.e",
-      "bachelor",
-      "master",
-      "mca",
-      "msc"
+      "Bachelor"
     ],
     "status": "active",
-    "created_at": "2025-07-18T23:13:06.655485",
-    "updated_at": "2025-07-18T23:13:06.655493"
+    "created_at": "2025-07-18T04:02:07.937096",
+    "updated_at": "2025-07-18T04:02:07.937113"
+  },
+  {
+    "id": "cloud-003",
+    "title": "Cloud Solutions Architect",
+    "company": "CloudTech Inc",
+    "location": "Seattle, WA",
+    "salary": "$140,000 - $170,000",
+    "description": "Design and implement cloud infrastructure solutions. Deep knowledge of cloud platforms and containerization required.",
+    "skills": [
+      "Cloud Platform",
+      "Infrastructure Design",
+      "Containerization",
+      "DevOps"
+    ],
+    "min_experience": 4,
+    "education_keywords": [
+      "Bachelor",
+      "Engineering"
+    ],
+    "status": "active",
+    "created_at": "2025-07-18T04:02:07.938191",
+    "updated_at": "2025-07-18T04:02:07.938204"
+  },
+  {
+    "id": "frontend-004",
+    "title": "Frontend Engineer",
+    "company": "WebCorp",
+    "location": "New York, NY",
+    "salary": "$100,000 - $130,000",
+    "description": "Create beautiful, responsive user interfaces using modern JavaScript frameworks and tools.",
+    "skills": [
+      "JavaScript Framework",
+      "Frontend Development",
+      "UI/UX",
+      "Modern JavaScript"
+    ],
+    "min_experience": 2,
+    "education_keywords": [
+      "Bachelor",
+      "Computer Science"
+    ],
+    "status": "active",
+    "created_at": "2025-07-18T04:02:07.939610",
+    "updated_at": "2025-07-18T04:02:07.939623"
+  },
+  {
+    "id": "data-005",
+    "title": "Machine Learning Engineer",
+    "company": "AI Innovations",
+    "location": "Boston, MA",
+    "salary": "$120,000 - $150,000",
+    "description": "Build and deploy machine learning models. Experience with ML frameworks and data processing required.",
+    "skills": [
+      "Machine Learning",
+      "Data Science",
+      "AI Development",
+      "Statistical Analysis"
+    ],
+    "min_experience": 3,
+    "education_keywords": [
+      "Master",
+      "Data Science",
+      "Statistics"
+    ],
+    "status": "active",
+    "created_at": "2025-07-18T04:02:07.940458",
+    "updated_at": "2025-07-18T04:02:07.940466"
+  },
+  {
+    "id": "mobile-006",
+    "title": "Mobile Application Developer",
+    "company": "MobileFirst",
+    "location": "Austin, TX",
+    "salary": "$95,000 - $125,000",
+    "description": "Develop native and cross-platform mobile applications for iOS and Android platforms.",
+    "skills": [
+      "Mobile Development",
+      "Cross-platform",
+      "iOS Development",
+      "Android Development"
+    ],
+    "min_experience": 2,
+    "education_keywords": [
+      "Bachelor",
+      "Software Engineering"
+    ],
+    "status": "active",
+    "created_at": "2025-07-18T04:02:07.947296",
+    "updated_at": "2025-07-18T04:02:07.947314"
+  },
+  {
+    "id": "devops-007",
+    "title": "DevOps Engineer",
+    "company": "InfraTech",
+    "location": "Denver, CO",
+    "salary": "$115,000 - $145,000",
+    "description": "Automate deployment processes and manage cloud infrastructure. Experience with CI/CD and orchestration tools needed.",
+    "skills": [
+      "CI/CD",
+      "Infrastructure Automation",
+      "Container Orchestration",
+      "Cloud Infrastructure"
+    ],
+    "min_experience": 4,
+    "education_keywords": [
+      "Bachelor"
+    ],
+    "status": "active",
+    "created_at": "2025-07-18T04:02:07.948848",
+    "updated_at": "2025-07-18T04:02:07.948897"
+  },
+  {
+    "id": "junior-008",
+    "title": "Junior Software Developer",
+    "company": "GrowthCorp",
+    "location": "Chicago, IL",
+    "salary": "$70,000 - $90,000",
+    "description": "Entry-level position for new graduates. Work with experienced team on web application development.",
+    "skills": [
+      "Programming Fundamentals",
+      "Web Development",
+      "Database Basics",
+      "Version Control"
+    ],
+    "min_experience": 0,
+    "education_keywords": [
+      "Bachelor",
+      "Computer Science"
+    ],
+    "status": "active",
+    "created_at": "2025-07-18T04:02:07.950285",
+    "updated_at": "2025-07-18T04:02:07.950305"
   }
 ]

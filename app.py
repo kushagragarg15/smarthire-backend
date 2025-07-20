@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response
 import os
 import logging
 from datetime import datetime
@@ -14,6 +14,7 @@ from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from werkzeug.utils import secure_filename
 import uuid
 import re
+import base64
 from typing import Optional, Dict, Any, List
 
 # Load environment variables
@@ -59,8 +60,13 @@ def connect_to_mongodb(max_retries: int = 3) -> Optional[MongoClient]:
     """Connect to MongoDB with retry logic"""
     for attempt in range(max_retries):
         try:
+            # Get MongoDB URI from environment variable or use default
+            mongodb_uri = os.getenv('MONGODB_URI', 
+                "mongodb+srv://23ucc564:2zc3Oys67uarz4W7@smarthire.ud6wo4p.mongodb.net/?retryWrites=true&w=majority&tls=true"
+            )
+            
             client = MongoClient(
-                "mongodb+srv://23ucc564:2zc3Oys67uarz4W7@smarthire.ud6wo4p.mongodb.net/?retryWrites=true&w=majority&tls=true",
+                mongodb_uri,
                 serverSelectionTimeoutMS=5000,
                 maxPoolSize=10,
                 minPoolSize=1
@@ -239,9 +245,19 @@ def parse_resume_endpoint():
         
         logger.info(f"Processing file: {original_filename}")
 
-        # Save file
+        # Save file to local filesystem (temporary for processing)
         file.save(filepath)
         logger.info(f"File saved to: {filepath}")
+        
+        # Also store file content in database for persistence
+        try:
+            with open(filepath, 'rb') as f:
+                file_content = f.read()
+                file_base64 = base64.b64encode(file_content).decode('utf-8')
+                logger.info(f"File encoded to base64, size: {len(file_base64)} characters")
+        except Exception as e:
+            logger.error(f"Failed to encode file to base64: {e}")
+            file_base64 = None
 
         try:
             # Step 1: Extract raw text from PDF
@@ -267,13 +283,16 @@ def parse_resume_endpoint():
                     'profile': candidate_profile
                 }), 422
 
-            # Add metadata
+            # Add metadata including file content for persistence
             candidate_profile.update({
                 "status": "Pending",
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
                 "original_filename": original_filename,
-                "file_id": unique_filename
+                "file_id": unique_filename,
+                "file_content": file_base64,  # Store file in database
+                "file_size": len(file_content) if file_base64 else 0,
+                "storage_type": "base64"
             })
 
             logger.info(f"Parsed profile for: {candidate_profile.get('email', 'Unknown')}")
@@ -1004,9 +1023,24 @@ def get_resume_file(email: str):
         # Check if file exists
         if not os.path.exists(file_path):
             logger.error(f"Resume file not found on server: {file_path}")
+            
+            # Check if resumes folder exists
+            if not os.path.exists(UPLOAD_FOLDER):
+                logger.error(f"Upload folder does not exist: {UPLOAD_FOLDER}")
+                return jsonify({
+                    'error': 'Resume storage folder not found',
+                    'details': f'Upload folder missing: {UPLOAD_FOLDER}'
+                }), 500
+            
+            # List available files for debugging
+            available_files = os.listdir(UPLOAD_FOLDER) if os.path.exists(UPLOAD_FOLDER) else []
+            logger.info(f"Available files in {UPLOAD_FOLDER}: {available_files}")
+            
             return jsonify({
                 'error': 'Resume file not found on server',
-                'details': f'Expected file: {file_id}'
+                'details': f'Expected file: {file_id}',
+                'suggestion': 'The file may have been lost during server restart or deployment. Please re-upload your resume.',
+                'available_files_count': len(available_files)
             }), 404
         
         # Get original filename for download
