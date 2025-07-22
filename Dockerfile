@@ -22,15 +22,7 @@ RUN python -m spacy download en_core_web_sm
 RUN mkdir -p src/core src/resume_parser src/api data logs resumes
 
 # Copy application code
-COPY main.py .
-COPY src/ ./src/
-COPY data/ ./data/
-#COPY .env .
-
-# Create a non-root user
-RUN useradd -m appuser
-RUN chown -R appuser:appuser /app
-USER appuser
+COPY . .
 
 # Expose port
 EXPOSE 5000
