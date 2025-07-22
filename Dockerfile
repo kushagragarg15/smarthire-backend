@@ -22,7 +22,10 @@ RUN python -m spacy download en_core_web_sm
 RUN mkdir -p src/core src/resume_parser src/api data logs resumes
 
 # Copy application code
-COPY . .
+COPY main.py .
+COPY src/ ./src/
+COPY data/ ./data/
+# COPY .env .  # Uncomment if needed
 
 # Expose port
 EXPOSE 5000
