@@ -3,9 +3,9 @@ import os
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
-from resume_parser.extract_text import extract_text_from_pdf
-from resume_parser.parser import parse_resume
-from resume_parser.matcher import match_jobs
+from src.resume_parser.extract_text import extract_text_from_pdf
+from src.resume_parser.parser import parse_resume
+from src.resume_parser.matcher import match_jobs
 import spacy
 from flask_cors import CORS
 import json
@@ -25,7 +25,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('smarthire.log'),
+        logging.FileHandler('logs/smarthire.log'),
         logging.StreamHandler()
     ]
 )
@@ -459,7 +459,7 @@ def save_job_to_json(job: Dict[str, Any]) -> None:
     try:
         # Load existing jobs
         try:
-            with open("jobs.json", "r") as f:
+            with open("data/jobs.json", "r") as f:
                 jobs = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             jobs = []
@@ -468,7 +468,7 @@ def save_job_to_json(job: Dict[str, Any]) -> None:
         jobs.append(job)
 
         # Save updated jobs
-        with open("jobs.json", "w") as f:
+        with open("data/jobs.json", "w") as f:
             json.dump(jobs, f, indent=2, default=str)
             
         logger.info(f"Job saved to JSON: {job['title']}")
@@ -487,7 +487,7 @@ def sync_json_with_mongodb() -> None:
         mongo_jobs = list(jobs_collection.find({"status": "active"}, {"_id": 0}))
         
         # Save to JSON file
-        with open("jobs.json", "w") as f:
+        with open("data/jobs.json", "w") as f:
             json.dump(mongo_jobs, f, indent=2, default=str)
             
         logger.info(f"Synced {len(mongo_jobs)} jobs from MongoDB to JSON")
@@ -527,7 +527,7 @@ def get_jobs():
         
         # Fallback to JSON file
         try:
-            with open("jobs.json", "r") as f:
+            with open("data/jobs.json", "r") as f:
                 jobs = json.load(f)
             jobs = jobs[:limit] # Apply limit
             logger.info(f"Retrieved {len(jobs)} jobs from JSON")
@@ -631,13 +631,13 @@ def delete_job(job_id: str):
 def update_job_in_json(job_id: str, updated_job: Dict[str, Any]):
     """Update job in JSON file"""
     try:
-        with open("jobs.json", "r") as f:
+        with open("data/jobs.json", "r") as f:
             jobs = json.load(f)
         
         for i, job in enumerate(jobs):
             if job.get('id') == job_id:
                 jobs[i].update(updated_job)
-                with open("jobs.json", "w") as f:
+                with open("data/jobs.json", "w") as f:
                     json.dump(jobs, f, indent=2, default=str)
                 logger.info(f"Job updated in JSON: {job_id}")
                 # Try to sync with MongoDB if available
@@ -655,14 +655,14 @@ def update_job_in_json(job_id: str, updated_job: Dict[str, Any]):
 def delete_job_from_json(job_id: str):
     """Delete job from JSON file"""
     try:
-        with open("jobs.json", "r") as f:
+        with open("data/jobs.json", "r") as f:
             jobs = json.load(f)
         
         original_length = len(jobs)
         jobs = [job for job in jobs if job.get('id') != job_id]
         
         if len(jobs) < original_length:
-            with open("jobs.json", "w") as f:
+            with open("data/jobs.json", "w") as f:
                 json.dump(jobs, f, indent=2, default=str)
             logger.info(f"Job deleted from JSON: {job_id}")
             # Try to sync with MongoDB if available
@@ -1163,7 +1163,7 @@ def apply_job():
         if not job:
             # Try JSON fallback
             try:
-                with open('jobs.json', 'r') as f:
+                with open('data/jobs.json', 'r') as f:
                     jobs = json.load(f)
                 job = next((j for j in jobs if j.get('id') == job_id), None)
             except:
@@ -1255,7 +1255,7 @@ def get_my_applications(candidate_email):
             if not job:
                 # Try JSON fallback
                 try:
-                    with open('jobs.json', 'r') as f:
+                    with open('data/jobs.json', 'r') as f:
                         jobs = json.load(f)
                     job = next((j for j in jobs if j.get('id') == job_id), None)
                 except:

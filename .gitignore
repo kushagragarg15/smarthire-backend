@@ -115,8 +115,8 @@ venv.bak/
 /data/db
 
 # Uploaded files
-/resumes/
-/uploads/
+/data/resumes/*.pdf
+/data/uploads/
 
 # Build artifacts
 *.map

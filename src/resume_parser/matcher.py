@@ -254,7 +254,7 @@ def load_jobs_data() -> List[Dict[str, Any]]:
     
     # Fallback to JSON file
     try:
-        with open('jobs.json', 'r') as f:
+        with open('data/jobs.json', 'r') as f:
             jobs = json.load(f)
             active_jobs = [job for job in jobs if job.get('status', 'active') == 'active']
             print(f"Loaded {len(active_jobs)} jobs from JSON fallback")

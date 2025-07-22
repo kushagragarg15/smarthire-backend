@@ -21,12 +21,12 @@ source venv/bin/activate
 
 # Install dependencies
 echo "Installing dependencies..."
-pip install -r requirements.txt
+pip install -r config/requirements.txt
 
 # Check if MongoDB is running
 echo "Checking MongoDB connection..."
-python check_database.py
+python tests/check_database.py
 
 # Start the Flask application
 echo "Starting Flask application..."
-python app.py
+python main.py
