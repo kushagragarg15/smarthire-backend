@@ -1,44 +1,8 @@
-# Environment variables
-.env
-.env.*
-!.env.example
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-venv/
-ENV/
-
-# Logs
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Dependency directories
-node_modules/
-jspm_packages/
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -57,79 +21,59 @@ wheels/
 *.egg
 MANIFEST
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
+# Environment variables
 .env
-.venv
-env/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Virtual environment
 venv/
+env/
 ENV/
 env.bak/
 venv.bak/
 
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-
-# IDE specific files
-.idea/
+# IDE
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
+
+# Logs
+logs/*.log
+*.log
+
+# Data files (contains user data)
+data/resumes.json
+resumes/
+uploads/
+
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# MongoDB data
-/data/db
+# Node.js (Frontend)
+smarthire-frontend/node_modules/
+smarthire-frontend/build/
+smarthire-frontend/.env
+smarthire-frontend/npm-debug.log*
+smarthire-frontend/yarn-debug.log*
+smarthire-frontend/yarn-error.log*
 
-# Uploaded files
-/data/resumes/*.pdf
-/data/uploads/
-
-# Build artifacts
-*.map
-*.min.js
-*.min.css
-
-# Security
-*.pem
-*.key
-*.crt
-*.p12
-*.pfx
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
 
 # Temporary files
-tmp/
-temp/
+*.tmp
+*.temp
+.cache/

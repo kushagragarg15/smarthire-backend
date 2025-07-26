@@ -235,9 +235,7 @@ def parse_resume_endpoint():
         # Ensure upload directory exists
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         
-        # Check if MongoDB is available
-        if resumes_collection is None:
-            return jsonify({'error': 'Database connection not available'}), 503
+        # MongoDB is optional - we can work with file storage
 
         if 'resume' not in request.files:
             logger.error("No resume file provided")
@@ -314,36 +312,49 @@ def parse_resume_endpoint():
 
             logger.info(f"Parsed profile for: {candidate_profile.get('email', 'Unknown')}")
 
-            # Step 3: Save to MongoDB
-            if candidate_profile.get("email"):
-                existing = resumes_collection.find_one({"email": candidate_profile["email"]})
-                if existing:
-                    logger.info(f"Updating existing resume for: {candidate_profile['email']}")
-                    candidate_profile["updated_at"] = datetime.utcnow()
-                    result = resumes_collection.update_one(
-                        {"email": candidate_profile["email"]},
-                        {"$set": candidate_profile}
-                    )
-                    if not result.modified_count:
-                        logger.error("Failed to update resume in database")
-                        return jsonify({'error': 'Failed to update resume data'}), 500
-                else:
-                    logger.info(f"Inserting new resume for: {candidate_profile['email']}")
-                    result = resumes_collection.insert_one(candidate_profile)
-                    if not result.inserted_id:
-                        logger.error("Failed to insert resume into database")
-                        return jsonify({'error': 'Failed to save resume data'}), 500
-                # Verify save
-                saved_resume = resumes_collection.find_one({"email": candidate_profile["email"]})
-                if not saved_resume:
-                    logger.error("Failed to save resume to database")
+            # Step 3: Save to MongoDB or JSON fallback
+            saved_successfully = False
+            
+            if resumes_collection is not None:
+                # Try MongoDB first
+                try:
+                    if candidate_profile.get("email"):
+                        existing = resumes_collection.find_one({"email": candidate_profile["email"]})
+                        if existing:
+                            logger.info(f"Updating existing resume for: {candidate_profile['email']}")
+                            candidate_profile["updated_at"] = datetime.utcnow()
+                            result = resumes_collection.update_one(
+                                {"email": candidate_profile["email"]},
+                                {"$set": candidate_profile}
+                            )
+                            saved_successfully = result.modified_count > 0
+                        else:
+                            logger.info(f"Inserting new resume for: {candidate_profile['email']}")
+                            result = resumes_collection.insert_one(candidate_profile)
+                            saved_successfully = result.inserted_id is not None
+                    else:
+                        logger.warning("No email found in resume - saving without email")
+                        result = resumes_collection.insert_one(candidate_profile)
+                        saved_successfully = result.inserted_id is not None
+                        
+                    if saved_successfully:
+                        logger.info("Resume saved to MongoDB successfully")
+                except Exception as mongo_error:
+                    logger.warning(f"MongoDB save failed: {mongo_error}")
+                    saved_successfully = False
+            
+            # Fallback to JSON file storage if MongoDB failed or not available
+            if not saved_successfully:
+                try:
+                    save_resume_to_json(candidate_profile)
+                    saved_successfully = True
+                    logger.info("Resume saved to JSON file successfully")
+                except Exception as json_error:
+                    logger.error(f"JSON save also failed: {json_error}")
                     return jsonify({'error': 'Failed to save resume data'}), 500
-            else:
-                logger.warning("No email found in resume - saving without email")
-                result = resumes_collection.insert_one(candidate_profile)
-                if not result.inserted_id:
-                    logger.error("Failed to insert resume into database")
-                    return jsonify({'error': 'Failed to save resume data'}), 500
+            
+            if not saved_successfully:
+                return jsonify({'error': 'Failed to save resume data'}), 500
 
         finally:
             # Keep the file for viewing - don't delete it
@@ -496,6 +507,48 @@ def save_job_to_json(job: Dict[str, Any]) -> None:
         logger.info(f"Job saved to JSON: {job['title']}")
     except Exception as e:
         logger.error(f"Failed to save job to JSON: {e}")
+        raise
+
+def save_resume_to_json(resume: Dict[str, Any]) -> None:
+    """Save resume to JSON file as fallback when MongoDB is not available"""
+    try:
+        # Ensure data directory exists
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        resumes_file = os.path.join(data_dir, 'resumes.json')
+        
+        # Load existing resumes
+        try:
+            with open(resumes_file, "r") as f:
+                resumes = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            resumes = []
+
+        # Check if resume already exists (by email)
+        email = resume.get('email')
+        if email:
+            # Update existing resume
+            for i, existing_resume in enumerate(resumes):
+                if existing_resume.get('email') == email:
+                    resumes[i] = resume
+                    logger.info(f"Updated existing resume in JSON for: {email}")
+                    break
+            else:
+                # Add new resume
+                resumes.append(resume)
+                logger.info(f"Added new resume to JSON for: {email}")
+        else:
+            # No email, just add it
+            resumes.append(resume)
+            logger.info("Added resume to JSON without email")
+
+        # Save updated resumes
+        with open(resumes_file, "w") as f:
+            json.dump(resumes, f, indent=2, default=str)
+            
+        logger.info(f"Resume saved to JSON successfully")
+    except Exception as e:
+        logger.error(f"Failed to save resume to JSON: {e}")
         raise
 
 def sync_json_with_mongodb() -> None:
@@ -830,96 +883,304 @@ def verify_token():
         return jsonify({'valid': False}), 500
 
 # -------------------------------
-# Endpoint: Get all resume matches
+# Endpoint: Apply for a job
 # -------------------------------
+@app.route('/apply_for_job', methods=['POST'])
+def apply_for_job():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        candidate_email = data.get('candidate_email')
+        job_id = data.get('job_id')
+        
+        if not candidate_email or not job_id:
+            return jsonify({'error': 'Missing candidate_email or job_id'}), 400
+            
+        # Check if candidate exists
+        if resumes_collection is None:
+            return jsonify({'error': 'Database connection not available'}), 503
+            
+        candidate = resumes_collection.find_one({"email": candidate_email})
+        if not candidate:
+            return jsonify({'error': 'Candidate not found'}), 404
+            
+        # Check if job exists
+        job = jobs_collection.find_one({"id": job_id}) if jobs_collection else None
+        if not job:
+            # Try to find in JSON fallback
+            try:
+                data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+                jobs_file = os.path.join(data_dir, 'jobs.json')
+                with open(jobs_file, 'r') as f:
+                    jobs = json.load(f)
+                job = next((j for j in jobs if j.get('id') == job_id), None)
+            except:
+                pass
+                
+        if not job:
+            return jsonify({'error': 'Job not found'}), 404
+            
+        # Create application record
+        application = {
+            "candidate_email": candidate_email,
+            "job_id": job_id,
+            "job_title": job.get('title', 'Unknown'),
+            "applied_at": datetime.utcnow(),
+            "status": "Applied"
+        }
+        
+        # Store application in database
+        if db:
+            applications_collection = db['applications']
+            # Check if already applied
+            existing = applications_collection.find_one({
+                "candidate_email": candidate_email,
+                "job_id": job_id
+            })
+            
+            if existing:
+                return jsonify({'message': 'Already applied to this job'}), 200
+                
+            applications_collection.insert_one(application)
+            
+        return jsonify({
+            'message': 'Application submitted successfully',
+            'application': {
+                'job_title': job.get('title'),
+                'applied_at': application['applied_at'].isoformat()
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in apply_job: {e}")
+        return jsonify({'error': 'Failed to submit application'}), 500
+
+# -------------------------------
+# Endpoint: Get candidate applications
+# -------------------------------
+@app.route('/candidate_applications/<email>', methods=['GET'])
+def get_candidate_applications(email):
+    try:
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+            
+        if db is None:
+            return jsonify({'applications': []}), 200
+            
+        applications_collection = db['applications']
+        applications = list(applications_collection.find(
+            {"candidate_email": email},
+            {"_id": 0}
+        ))
+        
+        return jsonify({'applications': applications})
+        
+    except Exception as e:
+        logger.error(f"Error getting candidate applications: {e}")
+        return jsonify({'error': 'Failed to get applications'}), 500
+
+# -------------------------------
+# Endpoint: Get all resume matches (Updated Logic)
+# -------------------------------
+@app.route('/resume_matches', methods=['GET'])
+def get_resume_matches_production():
+    """Simple version that just returns resumes with ATS scores"""
+    try:
+        logger.info("=== SIMPLE RESUME MATCHES ===")
+        
+        # Load resumes from JSON file
+        try:
+            data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+            resumes_file = os.path.join(data_dir, 'resumes.json')
+            if os.path.exists(resumes_file):
+                with open(resumes_file, 'r') as f:
+                    resumes = json.load(f)
+                logger.info(f"Found {len(resumes)} resumes in JSON file")
+            else:
+                logger.info("No resumes.json file found")
+                return jsonify([])
+        except Exception as e:
+            logger.error(f"Could not load resumes from JSON: {e}")
+            return jsonify([])
+        
+        # Create simple results
+        results = []
+        for resume in resumes:
+            result_item = {
+                "candidate": resume,
+                "ats_score": resume.get("ats_score", 0),
+                "applied_jobs": [],
+                "status": resume.get("status", "Pending"),
+                "total_applications": 0
+            }
+            results.append(result_item)
+        
+        logger.info(f"Returning {len(results)} results")
+        return jsonify(results)
+        
+    except Exception as e:
+        logger.error(f"ERROR in get_resume_matches_simple: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# Debug endpoint removed for production
+
 @app.route('/resume_matches', methods=['GET'])
 def get_resume_matches():
     try:
-        if resumes_collection is None:
-            return jsonify({'error': 'Database connection not available'}), 503
+        logger.info("=== FETCHING RESUME MATCHES WITH ATS SCORES ===")
         
-        logger.info("=== FETCHING RESUME MATCHES ===")
+        # Work with or without MongoDB
+        resumes = []
+        
+        if resumes_collection is not None:
+            try:
+                # Use MongoDB if available
+                resumes = list(resumes_collection.find({}, {"_id": 0}))
+                logger.info(f"Found {len(resumes)} resumes in MongoDB")
+            except Exception as e:
+                logger.warning(f"MongoDB query failed: {e}")
+                resumes = []
+        else:
+            # Fallback: Try to load from a JSON file if it exists
+            try:
+                data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+                resumes_file = os.path.join(data_dir, 'resumes.json')
+                if os.path.exists(resumes_file):
+                    with open(resumes_file, 'r') as f:
+                        resumes = json.load(f)
+                    logger.info(f"Found {len(resumes)} resumes in JSON fallback")
+                else:
+                    logger.info("No resumes found - starting fresh")
+                    resumes = []
+            except Exception as e:
+                logger.warning(f"Could not load resumes from JSON: {e}")
+                resumes = []
+        
+        # Handle case when no resumes exist
+        if not resumes:
+            logger.info("No resumes found in database")
+            return jsonify([])  # Return empty array instead of error
+        
+        logger.info("=== FETCHING RESUME MATCHES WITH ATS SCORES ===")
         resumes = list(resumes_collection.find({}, {"_id": 0}))
         logger.info(f"Found {len(resumes)} resumes in database")
-
-        requested_method = request.args.get('method', 'keyword')  # Default to keyword matching
         
         results = []
         for resume in resumes:
             logger.info(f"Processing resume for: {resume.get('email', 'No email')}")
             try:
-                # Check if candidate has applied for any jobs
-                applications_collection = db['applications']
-                candidate_applications = list(applications_collection.find(
-                    {'candidate_email': resume.get('email')},
-                    {'job_id': 1}
-                ))
-                
-                # Get all potential job matches for this candidate
-                all_matches = match_jobs(resume)
-                
-                if candidate_applications:
-                    # Mark jobs that the candidate has applied for
-                    applied_job_ids = [app['job_id'] for app in candidate_applications]
-                    for match in all_matches:
-                        match['applied'] = match.get('id') in applied_job_ids
+                # Calculate ATS score by matching against all available jobs
+                try:
+                    job_matches = match_jobs(resume)
                     
-                    logger.info(f"Found {len(all_matches)} potential matches, {len(applied_job_ids)} applied jobs")
-                else:
-                    # No applications found - still show all potential matches
-                    for match in all_matches:
-                        match['applied'] = False
-                    logger.info(f"Found {len(all_matches)} potential matches, no job applications")
+                    # Calculate overall ATS score (average of top 3 matches or best match)
+                    if job_matches:
+                        top_matches = job_matches[:3]  # Top 3 matches
+                        ats_score = sum(match.get('match_percentage', 0) for match in top_matches) / len(top_matches)
+                        ats_score = round(ats_score, 1)
+                    else:
+                        ats_score = resume.get("ats_score", 0)  # Use existing ATS score if no matches
+                except Exception as match_error:
+                    logger.warning(f"Job matching failed for {resume.get('email', 'No email')}: {match_error}")
+                    job_matches = []
+                    ats_score = resume.get("ats_score", 0)  # Use existing ATS score from resume
                 
-                # Always show all potential matches
-                matches = all_matches
+                # Get candidate's applications (only if MongoDB is available)
+                candidate_applications = []
+                if db is not None:
+                    try:
+                        applications_collection = db['applications']
+                        candidate_applications = list(applications_collection.find(
+                            {'candidate_email': resume.get('email')},
+                            {'job_id': 1, 'job_title': 1, 'applied_at': 1, 'status': 1, '_id': 0}
+                        ))
+                    except Exception as e:
+                        logger.warning(f"Could not fetch applications: {e}")
+                        candidate_applications = []
                 
-                actual_method = "keyword"
-                fallback = False
-                response_time = None
-                error_msg = None
-                total_found = len(matches) if matches else 0
-                returned = len(matches) if matches else 0
-                cached = False
+                # Get job details for applied jobs
+                applied_jobs = []
+                if candidate_applications:
+                    applied_job_ids = [app['job_id'] for app in candidate_applications]
+                    
+                    # Get job details from MongoDB or JSON
+                    if jobs_collection is not None:
+                        try:
+                            jobs_cursor = jobs_collection.find(
+                                {"id": {"$in": applied_job_ids}}, 
+                                {"_id": 0}
+                            )
+                            applied_jobs = list(jobs_cursor)
+                        except Exception as e:
+                            logger.warning(f"Could not fetch jobs from MongoDB: {e}")
+                            applied_jobs = []
+                    else:
+                        # Fallback to JSON
+                        try:
+                            data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+                            jobs_file = os.path.join(data_dir, 'jobs.json')
+                            with open(jobs_file, 'r') as f:
+                                all_jobs = json.load(f)
+                            applied_jobs = [job for job in all_jobs if job.get('id') in applied_job_ids]
+                        except:
+                            applied_jobs = []
+                    
+                    # Merge application data with job details and add match scores
+                    for job in applied_jobs:
+                        app_data = next((app for app in candidate_applications if app['job_id'] == job.get('id')), {})
+                        job['application_status'] = app_data.get('status', 'Applied')
+                        job['applied_at'] = app_data.get('applied_at')
+                        
+                        # Add match score for this specific job
+                        job_match = next((match for match in job_matches if match.get('id') == job.get('id')), None)
+                        if job_match:
+                            job['match_percentage'] = job_match.get('match_percentage', 0)
+                            job['match_scores'] = job_match.get('scores', {})
+                        else:
+                            job['match_percentage'] = 0
+                            job['match_scores'] = {}
+                
+                logger.info(f"Found {len(applied_jobs)} applied jobs for {resume.get('email', 'No email')}")
+                
+                # Update resume with calculated ATS score (only if MongoDB is available)
+                if resumes_collection is not None:
+                    try:
+                        resumes_collection.update_one(
+                            {"email": resume.get('email')},
+                            {"$set": {"ats_score": ats_score, "updated_at": datetime.utcnow()}}
+                        )
+                    except Exception as e:
+                        logger.warning(f"Could not update resume ATS score in MongoDB: {e}")
+                
+                # Create result with calculated ATS score and applied jobs
                 result_item = {
                     "candidate": resume,
-                    "matches": matches,
+                    "ats_score": ats_score,  # Calculated ATS score
+                    "applied_jobs": applied_jobs,  # Only jobs they applied for
                     "status": resume.get("status", "Pending"),
-                    "matching_metadata": {
-                        "requested_method": requested_method,
-                        "actual_method": actual_method,
-                        "fallback": fallback,
-                        "response_time": response_time,
-                        "error": error_msg,
-                        "total_found": total_found,
-                        "returned": returned,
-                        "cached": cached
-                    }
+                    "total_applications": len(candidate_applications),
+                    "top_job_matches": job_matches[:3]  # Include top 3 job matches for reference
                 }
                 results.append(result_item)
-                logger.info(f"Added {len(matches)} matches for {resume.get('email', 'No email')} using method {actual_method} (fallback: {fallback}, cached: {cached}, response_time: {response_time}, error: {error_msg})")
+                logger.info(f"Added candidate {resume.get('email', 'No email')} with calculated ATS score: {ats_score} and {len(applied_jobs)} applied jobs")
+                
             except Exception as match_error:
-                logger.error(f"Error matching jobs for {resume.get('email', 'No email')}: {match_error}")
+                logger.error(f"Error processing candidate {resume.get('email', 'No email')}: {match_error}")
                 # Continue with other resumes even if one fails
                 result_item = {
                     "candidate": resume,
-                    "matches": [],
+                    "ats_score": 0,
+                    "applied_jobs": [],
                     "status": resume.get("status", "Pending"),
-                    "matching_metadata": {
-                        "requested_method": requested_method,
-                        "actual_method": None,
-                        "fallback": False,
-                        "response_time": None,
-                        "error": str(match_error),
-                        "total_found": None,
-                        "returned": None,
-                        "cached": False
-                    }
+                    "total_applications": 0,
+                    "error": str(match_error)
                 }
                 results.append(result_item)
 
         logger.info(f"Returning {len(results)} results")
-        logger.info("=== RESUME MATCHES FETCHED ===")
+        logger.info("=== RESUME MATCHES FETCHED (ATS SCORE ONLY) ===")
         
         # Convert datetime objects to strings for JSON serialization
         def convert_datetime(obj):
@@ -1180,6 +1441,59 @@ def delete_resume(email: str):
         return jsonify({"error": str(e)}), 500
 
 # -------------------------------
+# Endpoint: Clear all candidate data (for fresh start)
+# -------------------------------
+@app.route('/clear_candidates', methods=['DELETE'])
+def clear_candidates():
+    try:
+        deleted_count = 0
+        
+        # Clear from MongoDB if available
+        if resumes_collection is not None:
+            try:
+                result = resumes_collection.delete_many({})
+                deleted_count = result.deleted_count
+                
+                # Also clear applications if they exist
+                try:
+                    applications_collection = db['applications']
+                    app_result = applications_collection.delete_many({})
+                    logger.info(f"Cleared {app_result.deleted_count} applications from MongoDB")
+                except Exception as e:
+                    logger.warning(f"Could not clear applications from MongoDB: {e}")
+                    
+                logger.info(f"Cleared {deleted_count} candidate records from MongoDB")
+            except Exception as e:
+                logger.warning(f"MongoDB clear failed: {e}")
+        else:
+            logger.info("MongoDB not available, skipping database clear")
+        
+        # Clear uploaded resume files
+        files_cleared = 0
+        try:
+            if os.path.exists(UPLOAD_FOLDER):
+                for filename in os.listdir(UPLOAD_FOLDER):
+                    file_path = os.path.join(UPLOAD_FOLDER, filename)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        files_cleared += 1
+                logger.info(f"Cleared {files_cleared} uploaded resume files")
+        except Exception as e:
+            logger.warning(f"Could not clear uploaded files: {e}")
+        
+        return jsonify({
+            "message": "Candidate data cleared successfully",
+            "deleted_resumes": deleted_count,
+            "files_cleared": files_cleared,
+            "status": "success",
+            "note": "MongoDB not available - working with file storage only" if resumes_collection is None else "MongoDB cleared successfully"
+        })
+
+    except Exception as e:
+        logger.error(f"Error clearing candidate data: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# -------------------------------
 # Endpoint: Health check with system info
 # -------------------------------
 @app.route('/', methods=['GET'])
@@ -1226,89 +1540,7 @@ def internal_server_error(error):
     logger.error(f"Internal server error: {error}")
     return jsonify({"error": "Internal server error"}), 500
 
-# -------------------------------
-# Endpoint: Apply for a job
-# -------------------------------
-@app.route('/apply_job', methods=['POST'])
-def apply_job():
-    try:
-        if resumes_collection is None:
-            return jsonify({'error': 'Database connection not available'}), 503
-            
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        candidate_email = data.get('candidate_email')
-        job_id = data.get('job_id')
-        cover_letter = data.get('cover_letter', '')
-        
-        if not candidate_email or not job_id:
-            return jsonify({'error': 'candidate_email and job_id are required'}), 400
-        
-        # Validate that candidate exists
-        candidate = resumes_collection.find_one({'email': candidate_email})
-        if not candidate:
-            return jsonify({'error': 'Candidate not found'}), 404
-        
-        # Validate that job exists
-        job = jobs_collection.find_one({'id': job_id}) if jobs_collection else None
-        if not job:
-            # Try JSON fallback
-            try:
-                with open('data/jobs.json', 'r') as f:
-                    jobs = json.load(f)
-                job = next((j for j in jobs if j.get('id') == job_id), None)
-            except:
-                job = None
-        
-        if not job:
-            return jsonify({'error': 'Job not found'}), 404
-        
-        # Create application record
-        applications_collection = db['applications']
-        application = {
-            'candidate_email': candidate_email,
-            'candidate_name': candidate.get('name', 'Unknown'),
-            'job_id': job_id,
-            'job_title': job.get('title', 'Unknown'),
-            'company': job.get('company', 'Unknown'),
-            'applied_at': datetime.utcnow(),
-            'status': 'applied',
-            'cover_letter': cover_letter,
-            'application_source': 'web'
-        }
-        
-        try:
-            # Check if already applied
-            existing = applications_collection.find_one({
-                'candidate_email': candidate_email,
-                'job_id': job_id
-            })
-            
-            if existing:
-                return jsonify({'error': 'Already applied for this job'}), 409
-            
-            # Insert application
-            result = applications_collection.insert_one(application)
-            if result.inserted_id:
-                logger.info(f"Job application created: {candidate_email} -> {job_id}")
-                return jsonify({
-                    'message': 'Application submitted successfully',
-                    'application_id': str(result.inserted_id),
-                    'job_title': job.get('title'),
-                    'company': job.get('company')
-                })
-            else:
-                return jsonify({'error': 'Failed to submit application'}), 500
-                
-        except Exception as e:
-            logger.error(f"Error creating application: {e}")
-            return jsonify({'error': 'Failed to submit application'}), 500
-        
-    except Exception as e:
-        logger.error(f"Error in apply_job: {e}")
-        return jsonify({'error': str(e)}), 500
+
 
 # -------------------------------
 # Endpoint: Get candidate's applications with fitness scores
