@@ -225,6 +225,88 @@ def parse_text_endpoint():
         return jsonify({'error': f'Error parsing text: {str(e)}'}), 500
 
 # -------------------------------
+# Endpoint: Save parsed resume data
+# -------------------------------
+@app.route('/save_resume', methods=['POST'])
+def save_resume_endpoint():
+    try:
+        data = request.get_json()
+        if not data or 'profile' not in data:
+            return jsonify({'error': 'No profile data provided'}), 400
+
+        candidate_profile = data['profile']
+        
+        # Add metadata
+        candidate_profile.update({
+            "status": "Pending",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        })
+
+        # Validate parsed data
+        validation_errors = validate_resume_data(candidate_profile)
+        if validation_errors:
+            logger.warning(f"Validation errors: {validation_errors}")
+            return jsonify({
+                'error': 'Resume data incomplete',
+                'details': validation_errors,
+                'profile': candidate_profile
+            }), 422
+
+        # Save to MongoDB or JSON fallback
+        saved_successfully = False
+        
+        if resumes_collection is not None:
+            # Try MongoDB first
+            try:
+                if candidate_profile.get("email"):
+                    existing = resumes_collection.find_one({"email": candidate_profile["email"]})
+                    if existing:
+                        logger.info(f"Updating existing resume for: {candidate_profile['email']}")
+                        candidate_profile["updated_at"] = datetime.utcnow()
+                        result = resumes_collection.update_one(
+                            {"email": candidate_profile["email"]},
+                            {"$set": candidate_profile}
+                        )
+                        saved_successfully = result.modified_count > 0
+                    else:
+                        logger.info(f"Inserting new resume for: {candidate_profile['email']}")
+                        result = resumes_collection.insert_one(candidate_profile)
+                        saved_successfully = result.inserted_id is not None
+                else:
+                    logger.warning("No email found in resume - saving without email")
+                    result = resumes_collection.insert_one(candidate_profile)
+                    saved_successfully = result.inserted_id is not None
+                    
+                if saved_successfully:
+                    logger.info("Resume saved to MongoDB successfully")
+            except Exception as mongo_error:
+                logger.warning(f"MongoDB save failed: {mongo_error}")
+                saved_successfully = False
+        
+        # Fallback to JSON file storage if MongoDB failed or not available
+        if not saved_successfully:
+            try:
+                save_resume_to_json(candidate_profile)
+                saved_successfully = True
+                logger.info("Resume saved to JSON file successfully")
+            except Exception as json_error:
+                logger.error(f"JSON save also failed: {json_error}")
+                return jsonify({'error': 'Failed to save resume data'}), 500
+        
+        if not saved_successfully:
+            return jsonify({'error': 'Failed to save resume data'}), 500
+
+        return jsonify({
+            "message": "Resume saved successfully",
+            "profile": {k: v for k, v in candidate_profile.items() if k not in ['_id']}
+        })
+
+    except Exception as e:
+        logger.error(f"ERROR in save_resume_endpoint: {str(e)}")
+        return jsonify({'error': f'Error saving resume: {str(e)}'}), 500
+
+# -------------------------------
 # Endpoint: Upload and parse resume
 # -------------------------------
 @app.route('/parse_resume', methods=['POST'])
@@ -982,15 +1064,14 @@ def get_candidate_applications(email):
         return jsonify({'error': 'Failed to get applications'}), 500
 
 # -------------------------------
-# Endpoint: Get all resume matches (Updated Logic)
-# -------------------------------
+# Resume matches endpoint - using the working version below
+
 @app.route('/resume_matches', methods=['GET'])
-def get_resume_matches_production():
-    """Simple version that just returns resumes with ATS scores"""
+def get_resume_matches():
     try:
-        logger.info("=== SIMPLE RESUME MATCHES ===")
+        logger.info("=== FETCHING RESUME MATCHES WITH ATS SCORES ===")
         
-        # Load resumes from JSON file
+        # Load resumes from JSON file (simple and reliable)
         try:
             data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
             resumes_file = os.path.join(data_dir, 'resumes.json')
@@ -1019,51 +1100,6 @@ def get_resume_matches_production():
         
         logger.info(f"Returning {len(results)} results")
         return jsonify(results)
-        
-    except Exception as e:
-        logger.error(f"ERROR in get_resume_matches_simple: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-# Debug endpoint removed for production
-
-@app.route('/resume_matches', methods=['GET'])
-def get_resume_matches():
-    try:
-        logger.info("=== FETCHING RESUME MATCHES WITH ATS SCORES ===")
-        
-        # Work with or without MongoDB
-        resumes = []
-        
-        if resumes_collection is not None:
-            try:
-                # Use MongoDB if available
-                resumes = list(resumes_collection.find({}, {"_id": 0}))
-                logger.info(f"Found {len(resumes)} resumes in MongoDB")
-            except Exception as e:
-                logger.warning(f"MongoDB query failed: {e}")
-                resumes = []
-        else:
-            # Fallback: Try to load from a JSON file if it exists
-            try:
-                data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
-                resumes_file = os.path.join(data_dir, 'resumes.json')
-                if os.path.exists(resumes_file):
-                    with open(resumes_file, 'r') as f:
-                        resumes = json.load(f)
-                    logger.info(f"Found {len(resumes)} resumes in JSON fallback")
-                else:
-                    logger.info("No resumes found - starting fresh")
-                    resumes = []
-            except Exception as e:
-                logger.warning(f"Could not load resumes from JSON: {e}")
-                resumes = []
-        
-        # Handle case when no resumes exist
-        if not resumes:
-            logger.info("No resumes found in database")
-            return jsonify([])  # Return empty array instead of error
-        
-        logger.info("=== FETCHING RESUME MATCHES WITH ATS SCORES ===")
         resumes = list(resumes_collection.find({}, {"_id": 0}))
         logger.info(f"Found {len(resumes)} resumes in database")
         
@@ -1492,6 +1528,10 @@ def clear_candidates():
     except Exception as e:
         logger.error(f"Error clearing candidate data: {e}")
         return jsonify({"error": str(e)}), 500
+
+# Duplicate login endpoint removed
+
+# Login endpoints already exist above
 
 # -------------------------------
 # Endpoint: Health check with system info
