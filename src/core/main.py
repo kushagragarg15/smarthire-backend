@@ -40,7 +40,11 @@ app = Flask(__name__)
 # Configure CORS for both local development and production
 allowed_origins = [
     "http://localhost:3000",  # Local development
-    "https://ipca.netlify.app",  # Netlify production  # Vercel production (if you switch)
+    "https://ipca.netlify.app",  # Your Netlify production domain
+    "https://smarthire-frontend.vercel.app",  # Vercel production
+    "https://smarthire-frontend.netlify.app",  # Alternative Netlify domain
+    "https://ipca.netlify.app/",  # With trailing slash
+    "*"  # Allow all origins during development (remove in production)
 ]
 CORS(app, origins=allowed_origins, methods=["GET", "POST", "PUT", "DELETE"], supports_credentials=True)
 
@@ -770,6 +774,60 @@ def update_status():
     except Exception as e:
         logger.error(f"Error updating status: {e}")
         return jsonify({"error": str(e)}), 500
+
+# -------------------------------
+# Authentication endpoints
+# -------------------------------
+@app.route('/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        username = data.get('username')
+        password = data.get('password')
+        
+        # Simple hardcoded authentication (replace with database in production)
+        valid_credentials = {
+            'recruiter': 'smartHire2024',
+            'admin': 'admin123',
+            'hr': 'hr@2024'
+        }
+        
+        if username in valid_credentials and valid_credentials[username] == password:
+            # In production, use JWT tokens or sessions
+            return jsonify({
+                'success': True,
+                'message': 'Login successful',
+                'user': {
+                    'username': username,
+                    'role': 'recruiter',
+                    'token': f'token_{username}_{datetime.utcnow().timestamp()}'
+                }
+            })
+        else:
+            return jsonify({'error': 'Invalid credentials'}), 401
+            
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        return jsonify({'error': 'Login failed'}), 500
+
+@app.route('/verify-token', methods=['POST'])
+def verify_token():
+    try:
+        data = request.get_json()
+        token = data.get('token')
+        
+        # Simple token validation (replace with proper JWT validation in production)
+        if token and token.startswith('token_'):
+            return jsonify({'valid': True})
+        else:
+            return jsonify({'valid': False}), 401
+            
+    except Exception as e:
+        logger.error(f"Token verification error: {e}")
+        return jsonify({'valid': False}), 500
 
 # -------------------------------
 # Endpoint: Get all resume matches
