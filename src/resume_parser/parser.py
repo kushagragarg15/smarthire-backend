@@ -23,7 +23,7 @@ else:
 
 def parse_resume(text):
     """
-    Parse resume text using OpenAI GPT-3.5-turbo for accurate extraction
+    Parse resume text using OpenAI GPT-3.5-turbo for accurate extraction and ATS scoring
     """
     logger.info(f"Starting resume parsing for text of length: {len(text)}")
     
@@ -33,8 +33,10 @@ def parse_resume(text):
 
     try:
         prompt = f"""
-        Extract the following fields from the resume text below and return as a JSON object:
+        Extract the following fields from the resume text below and return as a JSON object.
+        Also calculate an ATS (Applicant Tracking System) score from 0-100 based on resume quality.
 
+        Fields to extract:
         - name: Full name of the person
         - email: Email address
         - phone: Phone number
@@ -42,6 +44,13 @@ def parse_resume(text):
         - education: Array of education details (degree, institution, year)
         - experience: Experience in years (e.g., "3 years" or "2.5 years")
         - location: City, state, or country
+        - ats_score: Score from 0-100 based on:
+          * Resume formatting and structure (20 points)
+          * Skills relevance and quantity (25 points)
+          * Experience clarity and duration (25 points)
+          * Education background (15 points)
+          * Contact information completeness (10 points)
+          * Overall professional presentation (5 points)
 
         Resume Text:
         """
@@ -57,7 +66,8 @@ def parse_resume(text):
             "skills": ["Python", "JavaScript", "React"],
             "education": ["Bachelor of Science in Computer Science, University of XYZ, 2020"],
             "experience": "3 years",
-            "location": "New York, NY"
+            "location": "New York, NY",
+            "ats_score": 85
         }}
         """
 
@@ -100,7 +110,8 @@ def parse_resume(text):
             "skills": skills,
             "education": education,
             "experience": parsed_data.get("experience"),
-            "location": parsed_data.get("location")
+            "location": parsed_data.get("location"),
+            "ats_score": parsed_data.get("ats_score", 75)  # Default ATS score if not provided
         }
 
     except Exception as e:
@@ -393,6 +404,9 @@ def fallback_parse(text):
     if not education or len(education) == 0:
         education = ["Education details not specified"]  # Default education if none found
 
+    # Calculate basic ATS score based on available information
+    ats_score = calculate_ats_score(name, email.group() if email else None, phone.group() if phone else None, skills, education, experience, location)
+
     return {
         "name": name,
         "email": email.group() if email else None,
@@ -400,5 +414,43 @@ def fallback_parse(text):
         "skills": skills,
         "education": education,
         "experience": experience,
-        "location": location
+        "location": location,
+        "ats_score": ats_score
     }
+
+def calculate_ats_score(name, email, phone, skills, education, experience, location):
+    """
+    Calculate ATS score based on resume completeness and quality
+    """
+    score = 0
+    
+    # Contact information completeness (30 points)
+    if name: score += 10
+    if email: score += 10
+    if phone: score += 10
+    
+    # Skills assessment (25 points)
+    if skills and len(skills) > 0:
+        if len(skills) >= 5: score += 25
+        elif len(skills) >= 3: score += 20
+        elif len(skills) >= 1: score += 15
+    
+    # Education background (20 points)
+    if education and len(education) > 0:
+        education_text = ' '.join(education).lower()
+        if any(degree in education_text for degree in ['bachelor', 'master', 'phd', 'btech', 'mtech']):
+            score += 20
+        elif any(degree in education_text for degree in ['diploma', 'certification']):
+            score += 15
+        else:
+            score += 10
+    
+    # Experience clarity (15 points)
+    if experience:
+        score += 15
+    
+    # Location information (10 points)
+    if location: score += 10
+    
+    # Ensure score is within 0-100 range
+    return min(100, max(0, score))
