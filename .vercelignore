@@ -1,0 +1,9 @@
+smarthire-frontend
+resumes
+logs
+data
+docs
+files.txt
+*.md
+!README.md
+test_resume.pdf

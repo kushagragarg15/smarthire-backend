@@ -15,8 +15,11 @@ import threading
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_DIR = os.path.join(PROJECT_ROOT, "data")
-UPLOAD_DIR = os.path.join(PROJECT_ROOT, "resumes")
+# Serverless hosts (Vercel) only allow writing to /tmp, which is wiped between
+# invocations, so the JSON fallback there is for smoke tests only: set MONGODB_URI.
+_WRITABLE_ROOT = "/tmp/smarthire" if os.getenv("VERCEL") else PROJECT_ROOT
+DATA_DIR = os.path.join(_WRITABLE_ROOT, "data")
+UPLOAD_DIR = os.path.join(_WRITABLE_ROOT, "resumes")
 
 # Large or internal fields that should never be sent to the frontend
 HIDDEN_FIELDS = {"_id", "file_content"}
@@ -134,7 +137,7 @@ class Storage:
         else:
             self.jobs = JsonCollection("jobs.json", "id")
             self.resumes = JsonCollection("resumes.json", "email")
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
+            os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     # PDFs live in MongoDB when available so they survive redeploys on hosts
     # with ephemeral disks (Render, Railway). Otherwise they go to resumes/.

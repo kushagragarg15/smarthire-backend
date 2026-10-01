@@ -29,19 +29,23 @@ from src.resume_parser.extract_text import extract_text_from_pdf  # noqa: E402
 from src.resume_parser.matcher import match_jobs  # noqa: E402
 from src.resume_parser.parser import parse_resume  # noqa: E402
 
-os.makedirs(os.path.join(PROJECT_ROOT, "logs"), exist_ok=True)
+log_handlers = [logging.StreamHandler()]
+try:
+    os.makedirs(os.path.join(PROJECT_ROOT, "logs"), exist_ok=True)
+    log_handlers.append(logging.FileHandler(os.path.join(PROJECT_ROOT, "logs", "smarthire.log"), encoding="utf-8"))
+except OSError:
+    pass  # read-only filesystem (e.g. Vercel): log to stdout only
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(os.path.join(PROJECT_ROOT, "logs", "smarthire.log"), encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
+    handlers=log_handlers,
 )
 logger = logging.getLogger("smarthire")
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB uploads
+# Vercel rejects request bodies over 4.5 MB, so keep uploads under that everywhere
+MAX_UPLOAD_MB = 4
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
 # Auth uses a Bearer header, not cookies, so allowing any origin is safe.
 # Set CORS_ORIGINS="https://a.app,https://b.app" to restrict it anyway.
@@ -366,7 +370,7 @@ def method_not_allowed(_):
 
 @app.errorhandler(413)
 def too_large(_):
-    return jsonify({"error": "File too large. Maximum size is 10 MB"}), 413
+    return jsonify({"error": f"File too large. Maximum size is {MAX_UPLOAD_MB} MB"}), 413
 
 
 @app.errorhandler(Exception)
