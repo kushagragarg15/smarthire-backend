@@ -1,32 +1,31 @@
 #!/bin/bash
 
-# Start the SmartHire backend server
-echo "Starting SmartHire backend server..."
+# SmartHire Backend Startup Script (Production)
 
-# Check if Python is installed
-if ! command -v python3 &> /dev/null; then
-    echo "Python 3 is not installed. Please install Python 3 and try again."
-    exit 1
-fi
+echo "🚀 Starting SmartHire Backend (Production Mode)..."
 
-# Check if virtual environment exists, if not create one
+# Set production environment
+export FLASK_ENV=production
+
+# Check if virtual environment exists
 if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
+    echo "📦 Creating virtual environment..."
     python3 -m venv venv
 fi
 
 # Activate virtual environment
-echo "Activating virtual environment..."
+echo "🔧 Activating virtual environment..."
 source venv/bin/activate
 
 # Install dependencies
-echo "Installing dependencies..."
-pip install -r config/requirements.txt
+echo "📚 Installing dependencies..."
+pip install -r requirements.txt
 
-# Check if MongoDB is running
-echo "Checking MongoDB connection..."
-python tests/check_database.py
+# Create necessary directories
+mkdir -p data logs resumes
 
-# Start the Flask application
-echo "Starting Flask application..."
+# Initialize data files
+
+# Start the application
+echo "✅ Starting SmartHire Backend..."
 python main.py

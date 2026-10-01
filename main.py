@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
-"""
-SmartHire Application Entry Point
-=================================
+"""SmartHire entry point: python main.py"""
 
-This is the main entry point for the SmartHire application.
-It imports and runs the Flask application from the organized source structure.
-"""
-
-import sys
 import os
 
-# Add the src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from src.core.main import app
 
-# Import and run the main application
-if __name__ == '__main__':
-    from src.core.main import app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=os.getenv("FLASK_DEBUG") == "1")

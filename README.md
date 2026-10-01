@@ -1,138 +1,94 @@
-# SmartHire Backend
+# SmartHire - AI-Powered Resume Matching
 
-SmartHire is an AI-powered job matching platform that helps recruiters find the perfect candidates and job seekers discover ideal opportunities. This repository contains the backend API built with Flask and MongoDB.
+Candidates browse open positions and upload a PDF resume. SmartHire parses it (OpenAI, with a built-in
+keyword parser as fallback), gives it an ATS score and matches it against every posted job.
+Recruiters log in to a dashboard to review candidates, shortlist/reject them and manage job postings.
 
-## 🚀 Features
+## Quick start
 
-- **Resume Parsing**: Extract information from PDF resumes using AI
-- **Job Matching**: Match candidates with job postings based on skills and experience
-- **RESTful API**: Well-documented API endpoints for frontend integration
-- **MongoDB Integration**: Flexible data storage with JSON fallback
-- **OpenAI Integration**: AI-powered resume parsing and analysis
-
-## 📋 Requirements
-
-- Python 3.8+
-- MongoDB 4.4+
-- OpenAI API key
-
-## 🛠️ Setup
-
-### 1. Clone the repository
+**Backend** (Python 3.9+), from the project root:
 
 ```bash
-git clone https://github.com/yourusername/smarthire-backend.git
-cd smarthire-backend
+pip install -r requirements.txt
+cp .env.example .env        # everything in it is optional
+python main.py              # http://localhost:5000
 ```
 
-### 2. Create a virtual environment
+**Frontend** (Node 18+):
 
 ```bash
-# On Windows
-python -m venv venv
-venv\Scripts\activate
-
-# On macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
+cd smarthire-frontend
+npm install
+npm start                   # http://localhost:3000, talks to http://localhost:5000
 ```
 
-### 3. Install dependencies
+Recruiter logins (change them with `RECRUITER_USERS` in `.env`):
+`recruiter / smartHire2024`, `admin / admin123`, `hr / hr@2024`.
+
+## Configuration (`.env`)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPENAI_API_KEY` | not set | GPT resume parsing. Without it (or if the key has no credit) the keyword parser is used. |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Model used for parsing |
+| `MONGODB_URI` | not set | Use MongoDB. Without it data goes to `data/*.json` and PDFs to `resumes/`. |
+| `SECRET_KEY` | random per run | Signs login tokens. Set it so recruiters stay logged in across restarts. |
+| `RECRUITER_USERS` | see above | `user:password` pairs, comma-separated |
+| `CORS_ORIGINS` | `*` | Comma-separated frontend URLs allowed to call the API |
+
+Frontend: `REACT_APP_API_URL` in `smarthire-frontend/.env.development` (for `npm start`) and
+`smarthire-frontend/.env` (for `npm run build`).
+
+## Match score
+
+Each candidate is scored against each active job:
+
+- **Skills, 50%**: share of the job's skills found in the resume (synonyms such as `js`/`javascript` count)
+- **Experience, 30%**: candidate years ÷ job's minimum years, capped at 100%
+- **Education, 20%**: highest degree found vs a bachelor's baseline
+
+The **ATS score** (0-100) rates the resume itself (structure, skills, experience, education, contact info).
+
+## API
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/health` | | Status, storage backend, OpenAI configured |
+| POST | `/login` | | `{username, password}` → `{user: {token}}` |
+| POST | `/verify-token` | | `{token}` → `{valid}` |
+| GET | `/jobs` | | All jobs |
+| POST | `/parse_resume` | | multipart `resume` (PDF) and optional `job_id` |
+| GET | `/resume_file/<email>` | | The candidate's PDF |
+| GET | `/resume_matches` | ✔ | Candidates with job matches |
+| POST | `/update_status` | ✔ | `{email, status}`, status ∈ Pending, Under Review, Shortlisted, Rejected |
+| DELETE | `/resumes/<email>` | ✔ | Delete a candidate |
+| POST | `/add_job` | ✔ | `{title, skills, experience, company?, location?, description?, salary?}` |
+| PUT / DELETE | `/jobs/<id>` | ✔ | Update / delete a job |
+
+Authenticated routes need `Authorization: Bearer <token>`.
+
+## Project structure
+
+```
+main.py                      entry point
+src/core/main.py             Flask routes
+src/core/storage.py          MongoDB or JSON-file storage
+src/resume_parser/           PDF text extraction, parsing, matching
+smarthire-frontend/src/      React app (App.js = careers page, RecruiterDashboard.js, JobPostingForm.js)
+```
+
+## Deployment
+
+- Backend: `Dockerfile` (gunicorn), or any Python host running `gunicorn -w 1 main:app`. Set `MONGODB_URI`
+  and `SECRET_KEY` on hosts with temporary disks (Render, Railway) so data and uploaded PDFs survive restarts.
+- Frontend: `npm run build` and deploy `build/` (Vercel/Netlify) with `REACT_APP_API_URL` set to the backend URL.
+
+## Tests
 
 ```bash
-pip install -r config/requirements.txt
+cd smarthire-frontend && npm test
 ```
 
-### 4. Set up environment variables
+## License
 
-Create a `.env` file in the project root with the following variables:
-
-```
-# MongoDB Connection
-MONGODB_URI=mongodb://localhost:27017/
-
-# OpenAI API Key
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Application Settings
-DEBUG=True
-PORT=5000
-HOST=0.0.0.0
-```
-
-### 5. Install spaCy model
-
-```bash
-python -m spacy download en_core_web_sm
-```
-
-### 6. Run the application
-
-```bash
-# On Windows
-scripts\start_backend.bat
-
-# On macOS/Linux
-bash scripts/start_backend.sh
-
-# Or directly with Python
-python main.py
-```
-
-## 📚 API Documentation
-
-### Resume Management
-
-- `POST /parse_resume` - Upload and parse resume
-- `GET /resumes` - Get all resumes
-- `GET /resume_matches` - Get resumes with job matches
-- `POST /update_status` - Update candidate status
-
-### Job Management
-
-- `POST /add_job` - Create new job posting
-- `GET /jobs` - Get all jobs
-- `PUT /jobs/<job_id>` - Update job
-- `DELETE /jobs/<job_id>` - Delete job
-
-### Matching & Analytics
-
-- `POST /match_jobs` - Match candidate with jobs
-
-### System
-
-- `GET /health` - Health check with system status
-
-## 🧪 Testing
-
-```bash
-# Run tests
-python -m pytest tests/
-
-# Check database connection
-python tests/check_database.py
-```
-
-## 📁 Project Structure
-
-See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for a detailed overview of the project structure.
-
-## 🔄 Migration
-
-See [MIGRATION_SUMMARY.md](MIGRATION_SUMMARY.md) for details on the recent project restructuring.
-
-## 🐳 Docker
-
-A Dockerfile is provided in the `config` directory for containerization:
-
-```bash
-# Build the Docker image
-docker build -t smarthire-backend -f config/Dockerfile .
-
-# Run the container
-docker run -p 5000:5000 --env-file .env smarthire-backend
-```
-
-## 📄 License
-
-This project is licensed under the MIT License.
+MIT, see [LICENSE](LICENSE).

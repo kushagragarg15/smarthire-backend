@@ -1,38 +1,16 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements file
-COPY config/requirements.txt .
-
-# Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spaCy model
-RUN python -m spacy download en_core_web_sm
-
-# Create necessary directories
-RUN mkdir -p src/core src/resume_parser src/api data logs resumes
-
-# Copy application code
 COPY main.py .
 COPY src/ ./src/
-COPY data/ ./data/
-# COPY .env .  # Uncomment if needed
+RUN mkdir -p data logs resumes
 
-# Expose port
+ENV PORT=5000
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
-
-# Run the application
-CMD ["python", "main.py"]
+# One worker: the JSON-file store and per-process SECRET_KEY fallback assume a single process
+CMD gunicorn -w 1 --threads 4 --timeout 180 -b 0.0.0.0:${PORT} main:app
